@@ -13,17 +13,44 @@ TCHAR szWindowClass[MAX_LOADSTRING];			// the main window class name
 
 bool Running = false;
 
+BITMAPINFO bitmapInfo;
+void* bitmapMemory;
+HBITMAP hBitmap;
+HDC bitmapDeviceContext;
+
 // Forward declarations of functions included in this code module:
 ATOM				MyRegisterClass(HINSTANCE hInstance);
 BOOL				InitInstance(HINSTANCE, int);
 LRESULT CALLBACK	WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK	About(HWND, UINT, WPARAM, LPARAM);
 
+void Win32ResizeDIBSection(int width, int height) {
+
+	if (hBitmap) {
+		DeleteObject(hBitmap);
+	}
+
+	if (!bitmapDeviceContext) {
+		bitmapDeviceContext = CreateCompatibleDC(0);
+	}
+
+	bitmapInfo.bmiHeader.biSize = sizeof(bitmapInfo.bmiHeader);
+	bitmapInfo.bmiHeader.biWidth = width;
+	bitmapInfo.bmiHeader.biHeight = height;
+	bitmapInfo.bmiHeader.biPlanes = 1;
+	bitmapInfo.bmiHeader.biBitCount = 32;
+	bitmapInfo.bmiHeader.biCompression = BI_RGB;
+
+	hBitmap = CreateDIBSection(bitmapDeviceContext, &bitmapInfo, DIB_RGB_COLORS, &bitmapMemory, 0, 0);
+}
+
+void Win32UpdateWindow(HDC hDC, int x, int y, int width, int height) {
+	StretchDIBits(hDC, x, y, width, height, x, y, width, height, bitmapMemory, &bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
+}
+
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPTSTR lpCmdLine, _In_ int nCmdShow) {
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
-
-	MSG msg;
 
 	// Initialize global strings
 	LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -38,12 +65,16 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstanc
 	Running = true;
 
 	// Main message loop:
+	MSG msg;
 	while (Running) {
-		while (GetMessage(&msg, NULL, 0, 0) && Running) {
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
 	}
+
+	DeleteObject(hBitmap);
+	DeleteDC(bitmapDeviceContext);
 
 	return (int)msg.wParam;
 }
@@ -88,13 +119,32 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			wmId = LOWORD(wParam);
 			wmEvent = HIWORD(wParam);
 			return DefWindowProc(hWnd, message, wParam, lParam);
-		case WM_PAINT:
+
+		case WM_SIZE: {
+			RECT clientRect;
+			GetClientRect(hWnd, &clientRect);
+			int width = clientRect.right - clientRect.left;
+			int height = clientRect.bottom - clientRect.top;
+			Win32ResizeDIBSection(width, height);
+			break;
+		}
+
+		case WM_PAINT: {
 			hdc = BeginPaint(hWnd, &ps);
+
+			int x = ps.rcPaint.left;
+			int y = ps.rcPaint.top;
+			int width = ps.rcPaint.right - ps.rcPaint.left;
+			int height = ps.rcPaint.bottom - ps.rcPaint.top;
+
+			Win32UpdateWindow(hdc, x, y, width, height);
 
 			PatBlt(hdc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top, 0);
 
 			EndPaint(hWnd, &ps);
 			break;
+		}
+
 		case WM_DESTROY:
 			//PostQuitMessage(0);
 			Running = false;
