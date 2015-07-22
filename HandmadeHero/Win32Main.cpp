@@ -196,7 +196,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstanc
 
 		Win32WindowSize size = Win32GetWindowSize(hWnd);
 
-		//UpdateControllers();
+		UpdateControllers();
 		Render(deviceContext, size.width, size.height, &buffer);
 	}
 
