@@ -22,6 +22,7 @@
 #include <tchar.h>
 #include <stdint.h>
 #include <Xinput.h>
+#include <dsound.h>
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/hh405051(v=vs.85).aspx
 //#pragma comment(lib,XINPUT_DLL_W)
@@ -142,8 +143,15 @@ void UpdateControllers() {
 
 			int16_t rightThumbStickX = pad->sThumbRX;
 			int16_t rightThumbStickY = pad->sThumbRY;
+
+			//xOffset += leftThumbStickX >> 12;
+			//yOffset += leftThumbStickY >> 12;
 		}
 	}
+}
+
+void InitDirectSound(void) {
+	DirectSoundCreate(0, 
 }
 
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPTSTR lpCmdLine, _In_ int nCmdShow) {
@@ -170,6 +178,8 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstanc
 	}
 
 	HDC deviceContext = GetDC(hWnd);
+
+	InitDirectSound();
 
 	RECT clientRect;
 	GetClientRect(hWnd, &clientRect);
