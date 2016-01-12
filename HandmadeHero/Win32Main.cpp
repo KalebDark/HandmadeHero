@@ -21,15 +21,30 @@
 #include <memory.h>
 #include <tchar.h>
 #include <stdint.h>
+
+// Input Libraries - XInput
 #include <Xinput.h>
-#include <dsound.h>
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/hh405051(v=vs.85).aspx
 //#pragma comment(lib,XINPUT_DLL_W)
 //#pragma comment(lib,"xinput1_4.lib")
 // xinput9_1_0.lib is for Win7
 // xinput 1.4 is for Win8 and above
-#pragma comment(lib,"xinput9_1_0.lib")
+#pragma comment(lib, "xinput9_1_0.lib")
+
+// Audio Libraries - DirectSound
+#define DIRECTSOUND_VERSION 0x0900
+#include <mmsystem.h>
+#include <dsound.h>
+#pragma comment (lib, "dsound.lib")
+
+LPDIRECTSOUND directSound;
+IDirectSoundBuffer* primarySoundBuffer;
+
+// Audio Libraries - XAudio
+// https://msdn.microsoft.com/en-us/library/windows/desktop/ee415802(v=vs.85).aspx
+//#include <xaudio2.h>
+//#pragma comment(lib,"xaudio2.lib")
 
 #define MAX_LOADSTRING 100
 
@@ -103,13 +118,13 @@ void Win32CopyBufferToWindow(HDC hDC, int windowWidth, int windowHeight, Win32Of
 	StretchDIBits(hDC, 0, 0, windowWidth, windowHeight, 0, 0, buffer->width, buffer->height, buffer->memory, &buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
-void Render(HDC hDC, int windowWidth, int windowHeight, Win32OffscreenBuffer* buffer) {
-	static int xOffset = 0;
-	static int yOffset = 0;
+static int xOffset = 0;
+static int yOffset = 0;
 
+void Render(HDC hDC, int windowWidth, int windowHeight, Win32OffscreenBuffer* buffer) {
 	RenderGradient(buffer, xOffset, yOffset);
-	xOffset += 1;
-	yOffset += 1;
+	//xOffset += 1;
+	//yOffset += 1;
 
 	//PatBlt(deviceContext, 0, 0, width, height, 0);
 	Win32CopyBufferToWindow(hDC, windowWidth, windowHeight, buffer);
@@ -150,8 +165,60 @@ void UpdateControllers() {
 	}
 }
 
-void InitDirectSound(void) {
-	DirectSoundCreate(0, 
+void InitDirectSound(HWND hWnd) {
+	HRESULT hr = CoInitializeEx(NULL, 0);
+	if (FAILED(hr)) {
+		//ErrorHandler(hr);  // Add error-handling here.
+	}
+
+	HRESULT hResult = DirectSoundCreate(0, &directSound, 0);
+	if (FAILED(hResult)) {
+	}
+
+	hResult = directSound->SetCooperativeLevel(hWnd, DSSCL_PRIORITY);
+	if (FAILED(hResult)) {
+	}
+
+	DSBUFFERDESC bufferDesc;
+	bufferDesc.dwSize = sizeof(DSBUFFERDESC);
+	bufferDesc.dwFlags = DSBCAPS_PRIMARYBUFFER | DSBCAPS_CTRLVOLUME;
+	bufferDesc.dwBufferBytes = 0;
+	bufferDesc.dwReserved = 0;
+	bufferDesc.lpwfxFormat = NULL;
+	bufferDesc.guid3DAlgorithm = GUID_NULL;
+
+	// Get control of the primary sound buffer on the default sound device.
+	hResult = directSound->CreateSoundBuffer(&bufferDesc, &primarySoundBuffer, NULL);
+	if (FAILED(hResult)) {
+	}
+
+	WAVEFORMATEX waveFormat;
+	waveFormat.wFormatTag = WAVE_FORMAT_PCM;
+	waveFormat.nSamplesPerSec = 44100;
+	waveFormat.wBitsPerSample = 16;
+	waveFormat.nChannels = 2;
+	waveFormat.nBlockAlign = (waveFormat.wBitsPerSample / 8) * waveFormat.nChannels;
+	waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
+	waveFormat.cbSize = 0;
+
+	// Set the primary buffer to be the wave format specified.
+	hResult = primarySoundBuffer->SetFormat(&waveFormat);
+	if (FAILED(hResult)) {
+	}
+}
+
+void ShutdownDirectSound(void) {
+	// Release the primary sound buffer pointer.
+	/*if (m_primaryBuffer) {
+		m_primaryBuffer->Release();
+		m_primaryBuffer = 0;
+	}*/
+
+	// Release the direct sound interface pointer.
+	if (directSound) {
+		directSound->Release();
+		directSound = 0;
+	}
 }
 
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPTSTR lpCmdLine, _In_ int nCmdShow) {
@@ -179,7 +246,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstanc
 
 	HDC deviceContext = GetDC(hWnd);
 
-	InitDirectSound();
+	InitDirectSound(hWnd);
 
 	RECT clientRect;
 	GetClientRect(hWnd, &clientRect);
@@ -211,6 +278,8 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstanc
 		Render(deviceContext, size.width, size.height, &buffer);
 	}
 
+	ShutdownDirectSound();
+
 	UnregisterClass(L"HandmadeHero", hInstance);
 	ReleaseDC(hWnd, deviceContext);
 
@@ -239,6 +308,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			uint32_t keyCode = wParam;
 			bool wasDown = ((lParam & (1 << 30)) != 0);
 			bool isDown = ((lParam & (1 << 31)) == 0);
+
+			const int fastScrollSpeed = 10;
+
+			if (isDown) {
+				if (keyCode == VK_UP) {
+					yOffset += fastScrollSpeed;
+				}
+				else if (keyCode == VK_LEFT) {
+					xOffset -= fastScrollSpeed;
+				}
+				else if (keyCode == VK_DOWN) {
+					yOffset -= fastScrollSpeed;
+				}
+				else if (keyCode == VK_RIGHT) {
+					xOffset += fastScrollSpeed;
+				}
+			}
+
 			if (wasDown != isDown) {
 				if (keyCode == 'W') {
 				}
@@ -253,12 +340,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				else if (keyCode == 'E') {
 				}
 				else if (keyCode == VK_UP) {
+					yOffset += 1;
 				}
 				else if (keyCode == VK_LEFT) {
+					xOffset -= 1;
 				}
 				else if (keyCode == VK_DOWN) {
+					yOffset -= 1;
 				}
 				else if (keyCode == VK_RIGHT) {
+					xOffset += 1;
 				}
 				else if (keyCode == VK_ESCAPE) {
 					OutputDebugString(L"ESCAPE: ");
