@@ -26,6 +26,7 @@
 #include <Xinput.h>
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/hh405051(v=vs.85).aspx
+// https://msdn.microsoft.com/en-us/library/windows/desktop/ee415802%28v=vs.85%29.aspx
 //#pragma comment(lib,XINPUT_DLL_W)
 //#pragma comment(lib,"xinput1_4.lib")
 // xinput9_1_0.lib is for Win7
